@@ -1,0 +1,10 @@
+tensorflow
+opencv-python
+opencv-contrib-python
+mtcnn
+SpeechRecognition
+PyAudio
+wikipedia
+pandas
+streamlit
+numpy

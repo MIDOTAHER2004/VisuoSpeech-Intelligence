@@ -18,7 +18,7 @@ class CameraThread(threading.Thread):
         self.detect_interval = detect_interval
         self.frame_count = 0
         self.min_confidence = min_confidence
-        self.min_face_size = min_face_size  # minimum face size
+        self.min_face_size = min_face_size
 
     def run(self):
         while self.running:
@@ -29,7 +29,7 @@ class CameraThread(threading.Thread):
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             updated_faces = {}
 
-            # Update trackers first
+            # تحديث التراكرز وحذف IDs للوجوه الغير موجودة
             remove_ids = []
             for fid, tracker in self.trackers.items():
                 success, bbox = tracker.update(frame)
@@ -38,37 +38,30 @@ class CameraThread(threading.Thread):
                 else:
                     remove_ids.append(fid)
 
-            # Remove failed trackers
             for fid in remove_ids:
                 self.trackers.pop(fid)
                 self.faces.pop(fid, None)
 
-            # Run MTCNN detection every detect_interval frames
+            # كشف الوجوه كل detect_interval إطار
             if self.frame_count % self.detect_interval == 0:
                 detections = self.detector.detect_faces(rgb)
                 for det in detections:
                     confidence = det['confidence']
-                    keypoints = det['keypoints']
                     x, y, w, h = det['box']
 
-                    # Filter: low confidence + missing eyes + small faces
-                    if confidence < self.min_confidence:
-                        continue
-                    if 'left_eye' not in keypoints or 'right_eye' not in keypoints:
-                        continue
-                    if w < self.min_face_size or h < self.min_face_size:
+                    if confidence < self.min_confidence or w < self.min_face_size or h < self.min_face_size:
                         continue
 
                     bbox = (x, y, w, h)
 
-                    # Match with existing faces
+                    # التحقق من تداخل مع الوجوه الحالية
                     matched_id = None
                     for fid, old_bbox in updated_faces.items():
                         if self._iou(bbox, old_bbox) > 0.5:
                             matched_id = fid
                             break
 
-                    # Create new tracker if face is new
+                    # إذا وجه جديد، إعطاء ID جديد
                     if matched_id is None:
                         matched_id = self.next_id
                         self.next_id += 1
@@ -80,7 +73,7 @@ class CameraThread(threading.Thread):
 
             self.faces = updated_faces
 
-            # Draw bounding boxes
+            # رسم البوكسات للوجوه الحالية فقط
             for fid, (x, y, w, h) in self.faces.items():
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
                 cv2.putText(frame, f"ID {fid}", (x, y - 10),

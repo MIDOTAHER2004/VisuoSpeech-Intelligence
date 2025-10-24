@@ -3,58 +3,52 @@ import threading
 from queue import Queue
 import wikipedia
 
-wikipedia.set_lang("ar")  # default language
-
-# Detect speech language (Arabic or English)
-def detect_language(text):
-    arabic_chars = sum(1 for c in text if '\u0600' <= c <= '\u06FF')
-    latin_chars = sum(1 for c in text if c.isalpha() and c.isascii())
-    return "ar" if arabic_chars >= latin_chars else "en"
+wikipedia.set_lang("ar")
 
 class PersonSpeech:
     def __init__(self, face_id):
-        self.face_id = face_id  # link person with Face ID
+        self.face_id = face_id
         self.history = []
-        self.queue = Queue()
         self.reply_queue = Queue()
         self.lock = threading.Lock()
         self.listening = False
         self.recognizer = sr.Recognizer()
         self.thread = None
-        self.lang = None
 
     def generate_reply(self, text):
         try:
-            wikipedia.set_lang(self.lang or "ar")
             summary = wikipedia.summary(text, sentences=2)
             return summary
         except wikipedia.DisambiguationError as e:
-            return f"Ambiguous question: {e.options[:5]}"
+            return f"Ambiguous question, try specifying more: {e.options[:5]}"
         except wikipedia.PageError:
-            return "Sorry, no information found."
-        except Exception as e:
-            print(f"Wikipedia error: {e}")
-            return "Error while searching."
+            return "No information found on this topic."
+        except Exception:
+            return "Error occurred while searching."
 
     def listen_loop(self):
         with sr.Microphone() as source:
-            self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            self.recognizer.adjust_for_ambient_noise(source, duration=1)
             while self.listening:
                 try:
-                    audio = self.recognizer.listen(source, phrase_time_limit=5)
-                    text = self.recognizer.recognize_google(audio, language="ar-EG").strip()
+                    audio = self.recognizer.listen(source, phrase_time_limit=None)  # Continuous listening
+                    try:
+                        text = self.recognizer.recognize_google(audio, language="ar-EG").strip()
+                    except sr.UnknownValueError:
+                        text = "[Unclear]"
+
                     if text:
                         with self.lock:
                             self.history.append(text)
-                        # Detect language automatically on first spoken text
-                        if self.lang is None:
-                            self.lang = detect_language(text)
+
+                        if text == "[Unclear]":
+                            self.reply_queue.put("[Unclear]")
+                            continue
+
                         reply = self.generate_reply(text)
                         self.reply_queue.put(reply)
-                except sr.UnknownValueError:
-                    continue
-                except sr.RequestError as e:
-                    print(f"Speech API error: {e}")
+
+                except sr.RequestError:
                     continue
 
     def start(self):
@@ -78,9 +72,10 @@ class PersonSpeech:
             items.append(self.reply_queue.get())
         return items
 
+
 class SpeechManager:
     def __init__(self):
-        self.persons = {}  # {face_id: PersonSpeech}
+        self.persons = {}
         self.lock = threading.Lock()
 
     def add_person(self, face_id):

@@ -16,3 +16,4 @@ def plot_speech_counts(spoken_history):
     st.table(df)
 
     st.subheader("📊 Speech Activity by ID")
+    st.bar_chart(df.set_index("ID"))

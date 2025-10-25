@@ -49,12 +49,12 @@ class CameraThread(threading.Thread):
                 self.last_seen.pop(fid, None)
 
             if self.frame_count % self.detect_interval == 0:
-                small_rgb = cv2.resize(rgb, (0,0), fx=0.5, fy=0.5)  # تحسين الأداء
+                small_rgb = cv2.resize(rgb, (0,0), fx=0.5, fy=0.5)
                 detections = self.detector.detect_faces(small_rgb)
                 for det in detections:
                     confidence = det['confidence']
                     x, y, w, h = det['box']
-                    x, y, w, h = int(x*2), int(y*2), int(h*2), int(w*2)  # تكبير للإطار الأصلي
+                    x, y, w, h = int(x*2), int(y*2), int(h*2), int(w*2)
 
                     if confidence < self.min_confidence or w < self.min_face_size or h < self.min_face_size:
                         continue

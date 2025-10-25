@@ -31,20 +31,15 @@ class PersonSpeech:
             self.recognizer.adjust_for_ambient_noise(source, duration=1)
             while self.listening:
                 try:
-                    audio = self.recognizer.listen(source, phrase_time_limit=None)  # Continuous listening
+                    audio = self.recognizer.listen(source, phrase_time_limit=None)
                     try:
                         text = self.recognizer.recognize_google(audio, language="ar-EG").strip()
                     except sr.UnknownValueError:
-                        text = "[Unclear]"
+                        continue  
 
                     if text:
                         with self.lock:
                             self.history.append(text)
-
-                        if text == "[Unclear]":
-                            self.reply_queue.put("[Unclear]")
-                            continue
-
                         reply = self.generate_reply(text)
                         self.reply_queue.put(reply)
 
